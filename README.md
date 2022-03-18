@@ -1,3 +1,3 @@
 # curvyy
 
-A handwriting classifier based on MNIST image set
+A handwriting classifier based on EMNIST image set
