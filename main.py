@@ -13,6 +13,7 @@ class SEQ(Enum):
     IDLE = 1,
     WRITING = 2,
     DONE = 3,
+    
     SAVE =4,
 
 class Manager():
