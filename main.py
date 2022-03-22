@@ -1,8 +1,20 @@
-from enum import Enum
 import sys
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import tensorflow as tf
+import cv2
+from PIL import Image
+from tensorflow import keras
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
+from enum import Enum
+
+config = tf.compat.v1.ConfigProto()
+config.gpu_options.per_process_gpu_memory_fraction = 0.8
+config.gpu_options.allow_growth = True
+session = tf.compat.v1.InteractiveSession(config=config)
 
 def delay(n):
     loop = QEventLoop()
@@ -42,9 +54,33 @@ class Manager():
             app.orange.off()
             app.green.on()
             self.clearCanvas(app.canvas)
+            self.predict(app.textbox)
     
-    def clearCanvas(self, app):
-        app.clearScene()
+    def clearCanvas(self, canvas):
+        canvas.clearScene()
+
+    def predict(self,textbox):
+        mapp = pd.read_csv("data/emnist-balanced-mapping.txt", delimiter = ' ', \
+                   index_col=0, header=None).squeeze("columns")
+        img = Image.open("img.png")
+
+        img = img.resize((28,28),Image.LANCZOS)
+        img = np.array(img)
+        saveimg = Image.fromarray(img)
+        saveimg.save('example.png','png')
+        img = (255-img[:,:,0].reshape(1,28,28))/255.0
+        print(img.shape)
+
+        model = keras.models.load_model("parameters.h5")
+
+        result = model.predict(img)
+        
+        plt.imshow(img.reshape(28,28),cmap='gray_r')
+        plt.show()
+        pred_class = np.argmax(result)
+        pred_letter = chr(mapp[pred_class])
+        print(f"예측 문자 : {pred_letter}")
+        textbox.setText(pred_letter)
 
 manager = Manager()
 
@@ -61,7 +97,7 @@ class App(QWidget):
 
         # Components
         self.canvas = Canvas()
-        textbox = QTextEdit()
+        self.textbox = QTextEdit()
 
         self.red = Signal("red")
         self.orange = Signal("orange")
@@ -81,7 +117,7 @@ class App(QWidget):
 
         rightvbox = QVBoxLayout()
         rightvbox.addWidget(QLabel('Text'))
-        rightvbox.addWidget(textbox)
+        rightvbox.addWidget(self.textbox)
 
         leftvbox = QVBoxLayout()
         leftvbox.addLayout(signalbox)
