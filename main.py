@@ -32,8 +32,11 @@ class Manager():
     def __init__(self):
         super().__init__()
         self.seq = SEQ.IDLE
-        
+        self.str = ""
+        self.model = self.loadModel()
+
     def setState(self,app,state):
+        self.seq = state
         if state == SEQ.IDLE:
             app.red.on()
             app.orange.off()
@@ -55,32 +58,44 @@ class Manager():
             app.green.on()
             self.clearCanvas(app.canvas)
             self.predict(app.textbox)
+
+    def getState(self):
+        return self.seq
     
     def clearCanvas(self, canvas):
         canvas.clearScene()
 
+    def loadModel(self):
+        model = keras.models.load_model("parameters.h5")
+        model.compile(optimizer='sgd',loss='sparse_categorical_crossentropy',metrics='accuracy')
+        return model
+
     def predict(self,textbox):
         mapp = pd.read_csv("data/emnist-balanced-mapping.txt", delimiter = ' ', \
                    index_col=0, header=None).squeeze("columns")
-        img = Image.open("img.png")
+        img = cv2.imread("img.png")
 
-        img = img.resize((28,28),Image.LANCZOS)
-        img = np.array(img)
-        saveimg = Image.fromarray(img)
+        img = 255-img[:,:,0]
+        img = np.fliplr(img)
+        img = np.rot90(img)
+
+        saveimg = Image.fromarray(img.reshape(28,28).astype(np.uint8))
         saveimg.save('example.png','png')
-        img = (255-img[:,:,0].reshape(1,28,28))/255.0
-        print(img.shape)
 
-        model = keras.models.load_model("parameters.h5")
+        img = img.reshape(1,28,28)
 
-        result = model.predict(img)
+        result = self.model.predict(img)
+        print(img)
         
-        plt.imshow(img.reshape(28,28),cmap='gray_r')
-        plt.show()
+        # plt.imshow(img.reshape(28,28),cmap='gray_r')
+        # plt.show()
         pred_class = np.argmax(result)
         pred_letter = chr(mapp[pred_class])
         print(f"예측 문자 : {pred_letter}")
-        textbox.setText(pred_letter)
+
+        self.str += pred_letter
+        textbox.clear()
+        textbox.setText(self.str)
 
 manager = Manager()
 
@@ -92,7 +107,7 @@ class App(QWidget):
     def initUI(self):
         # Main Window 정보 설정
         self.setWindowTitle("Curvyy")
-        self.resize(800, 600)
+        self.resize(600, 400)
         ##
 
         # Components
@@ -211,9 +226,10 @@ class Canvas(QGraphicsView):
         pp = self.parent()
         img = QPixmap()
         img = self.grab(self.sceneRect().toRect())
+        img = img.scaled(28,28,transformMode=Qt.SmoothTransformation)
         img.save('img.png')
         self.scene.clear()
-        delay(1000)
+        delay(500)
         manager.setState(pp,SEQ.IDLE)
         
     def moveEvent(self, e):
@@ -222,18 +238,18 @@ class Canvas(QGraphicsView):
         self.scene.setSceneRect(rect)
 
     def mousePressEvent(self, e):
-        if e.buttons() & Qt.LeftButton:
-            self.start = e.pos()
-            self.end = e.pos()
-
-    def mouseMoveEvent(self, e):
-        self.end = e.pos()
-        pen = QPen(Qt.black, 10)
         pp = self.parent()
 
         if e.buttons() & Qt.LeftButton:
+            self.start = e.pos()
+            self.end = e.pos()
             manager.setState(pp,SEQ.WRITING)
 
+
+    def mouseMoveEvent(self, e):
+        if (e.buttons() & Qt.LeftButton) & (manager.getState() == SEQ.WRITING):
+            self.end = e.pos()
+            pen = QPen(Qt.black, 30,Qt.SolidLine,Qt.RoundCap,Qt.RoundJoin)
             path = QPainterPath()
             path.moveTo(self.start)
             path.lineTo(self.end)
@@ -242,11 +258,17 @@ class Canvas(QGraphicsView):
             self.start = e.pos()
     
     def mouseReleaseEvent(self,e):
-        pp = self.parent()
-        manager.setState(pp,SEQ.DONE)
+        if e.button() == Qt.LeftButton:
+            pp = self.parent()
+            manager.setState(pp,SEQ.DONE)
+            super(Canvas, self).mouseReleaseEvent(e)
+
+        
 
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     ex = App()
+
     sys.exit(app.exec_())
+# Ex 10-6. MNIST 손글씨 인식 프로그램.
