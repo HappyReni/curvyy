@@ -25,8 +25,8 @@ class SEQ(Enum):
     IDLE = 1,
     WRITING = 2,
     DONE = 3,
-    
-    SAVE =4,
+    BLINK = 4,
+    SAVE =5,
 
 class Manager():
     def __init__(self):
@@ -47,7 +47,7 @@ class Manager():
             app.green.off()
             app.orange.on()
 
-        elif state == SEQ.DONE:
+        elif state == SEQ.BLINK:
             app.red.off()
             app.green.off()
             app.orange.blink()
@@ -186,6 +186,9 @@ class Signal(QWidget):
         manager.setState(pp, SEQ.SAVE)
     
     def blink(self):
+        pp = self.parent()
+        manager.setState(pp,SEQ.DONE)
+        
         self.color_anim_s = QPropertyAnimation(self.effect, b'opacity')
         self.color_anim_s.setStartValue(1.0)
         self.color_anim_s.setEndValue(0.3)
@@ -258,9 +261,9 @@ class Canvas(QGraphicsView):
             self.start = e.pos()
     
     def mouseReleaseEvent(self,e):
-        if e.button() == Qt.LeftButton:
+        if manager.getState() == SEQ.WRITING:
             pp = self.parent()
-            manager.setState(pp,SEQ.DONE)
+            manager.setState(pp,SEQ.BLINK)
             super(Canvas, self).mouseReleaseEvent(e)
 
         
@@ -271,4 +274,3 @@ if __name__ == '__main__':
     ex = App()
 
     sys.exit(app.exec_())
-# Ex 10-6. MNIST 손글씨 인식 프로그램.
