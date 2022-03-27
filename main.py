@@ -12,7 +12,7 @@ from PyQt5.QtGui import *
 from enum import Enum
 
 config = tf.compat.v1.ConfigProto()
-config.gpu_options.per_process_gpu_memory_fraction = 0.8
+config.gpu_options.per_process_gpu_memory_fraction = 1.0
 config.gpu_options.allow_growth = True
 session = tf.compat.v1.InteractiveSession(config=config)
 
@@ -47,17 +47,21 @@ class Manager():
             app.green.off()
             app.orange.on()
 
-        elif state == SEQ.BLINK:
+        elif state == SEQ.DONE:
             app.red.off()
             app.green.off()
-            app.orange.blink()
+            app.orange.on()
         
         elif state == SEQ.SAVE:
             app.red.off()
             app.orange.off()
             app.green.on()
+
             self.clearCanvas(app.canvas)
             self.predict(app.textbox)
+            
+            self.setState(app,SEQ.IDLE)
+            
 
     def getState(self):
         return self.seq
@@ -66,7 +70,7 @@ class Manager():
         canvas.clearScene()
 
     def loadModel(self):
-        model = keras.models.load_model("parameters.h5")
+        model = keras.models.load_model("best-parameters.h5")
         model.compile(optimizer='sgd',loss='sparse_categorical_crossentropy',metrics='accuracy')
         return model
 
@@ -82,16 +86,12 @@ class Manager():
         saveimg = Image.fromarray(img.reshape(28,28).astype(np.uint8))
         saveimg.save('example.png','png')
 
-        img = img.reshape(1,28,28)
+        img = img.reshape(1,28,28,1)
 
         result = self.model.predict(img)
-        print(img)
         
-        # plt.imshow(img.reshape(28,28),cmap='gray_r')
-        # plt.show()
         pred_class = np.argmax(result)
         pred_letter = chr(mapp[pred_class])
-        print(f"예측 문자 : {pred_letter}")
 
         self.str += pred_letter
         textbox.clear()
@@ -180,24 +180,6 @@ class Signal(QWidget):
         self.effect.setOpacity(1)
         self.state = False
         self.update()
-    
-    def beginSave(self):
-        pp = self.parent()
-        manager.setState(pp, SEQ.SAVE)
-    
-    def blink(self):
-        pp = self.parent()
-        manager.setState(pp,SEQ.DONE)
-        
-        self.color_anim_s = QPropertyAnimation(self.effect, b'opacity')
-        self.color_anim_s.setStartValue(1.0)
-        self.color_anim_s.setEndValue(0.3)
-        self.color_anim_s.setDuration(1000)
-        self.color_anim_s.setLoopCount(2)
-
-        self.color_anim_s.start()
-        self.color_anim_s.finished.connect(self.off)
-        self.color_anim_s.finished.connect(self.beginSave)
 
     def paintEvent(self, e):
         painter = QPainter(self)
@@ -226,14 +208,14 @@ class Canvas(QGraphicsView):
         self.setScene(self.scene)
 
     def clearScene(self):
-        pp = self.parent()
+       
         img = QPixmap()
         img = self.grab(self.sceneRect().toRect())
         img = img.scaled(28,28,transformMode=Qt.SmoothTransformation)
         img.save('img.png')
         self.scene.clear()
-        delay(500)
-        manager.setState(pp,SEQ.IDLE)
+        delay(200)
+        
         
     def moveEvent(self, e):
         rect = QRectF(self.rect())
@@ -261,10 +243,15 @@ class Canvas(QGraphicsView):
             self.start = e.pos()
     
     def mouseReleaseEvent(self,e):
+        pp = self.parent()
+        manager.setState(pp,SEQ.DONE)
+        delay(1000)
         if manager.getState() == SEQ.WRITING:
-            pp = self.parent()
-            manager.setState(pp,SEQ.BLINK)
-            super(Canvas, self).mouseReleaseEvent(e)
+            return
+        elif manager.getState() == SEQ.DONE:
+            manager.setState(pp,SEQ.SAVE)
+        # manager.setState(pp,SEQ.BLINK)
+        super(Canvas, self).mouseReleaseEvent(e)
 
         
 
